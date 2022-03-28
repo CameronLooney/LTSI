@@ -11,13 +11,14 @@ st.set_page_config(page_title='LTSI Open Orders')
 st.write("""
 
 # LTSI Tool 
-## Instructions for the first upload please make sure you have the following:\n
+## Instructions\n 
+###For the first upload please make sure you have the following:\n
 Sheet 1: vlookup \n 
 Sheet 2: Previous \n 
 Sheet 3: Dropdown Menu \n  
 Sheet 4 LTSI tool True \n \n 
 
-For your second upload please upload your raw download for the day \n \n 
+###For your second upload please upload your raw download for the day \n \n 
 
 ### Contact me if issues arise:
 Slack: @Cameron Looney \n
