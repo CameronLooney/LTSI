@@ -11,6 +11,13 @@ st.set_page_config(page_title='LTSI Open Orders')
 st.write("""
 
 # LTSI Tool 
+## Instructions for the first upload please make sure you have the following:
+Sheet 1: vlookup 
+Sheet 2: Previous
+Sheet 3: Dropdown Menu 
+Sheet 4 LTSI tool True 
+
+For your second upload please upload your raw download for the day 
 
 ### Contact me if issues arise:
 Slack: @Cameron Looney \n
@@ -29,7 +36,7 @@ if aux is not None and master is not None:
 
     vlookup.rename(columns={'MPN': 'material_num'}, inplace=True)
     master = master.merge(vlookup, on= 'material_num', how='left')
-    print(list(master.columns))
+
 
     rows = master[master['Date']>= master['ord_entry_date']].index.to_list()
     master = master.drop(rows).reset_index()
@@ -107,13 +114,17 @@ if aux is not None and master is not None:
     # CONCAT ID AND LINE ORDER AND ADD
     #  INDEX IS 8
 
-    res = np.select(conditions, outputs, 'Under Review by C-SAM')
+    res = np.select(conditions, outputs, "Under Review by C-SAM")
     res = pd.Series(res)
     merged['Status (SS)'] = res
     feedback = previous.drop('Status (SS)', 1)
     merged['g'] = merged.groupby('Sales Order and Line Item').cumcount()
     feedback['g'] = feedback.groupby('Sales Order and Line Item').cumcount()
     merged = merged.merge(feedback, how='left').drop('g', 1)
+
+    merged['g'] = merged.groupby('Sales Order and Line Item').cumcount()
+    previous['g'] = previous.groupby('Sales Order and Line Item').cumcount()
+    merged = merged.merge(previous, how='left').drop('g', 1)
 
 
     import io
@@ -147,5 +158,6 @@ if aux is not None and master is not None:
             file_name="LTSI_file_" + d1 + ".xlsx",
             mime="application/vnd.ms-excel"
         )
+
 
 
