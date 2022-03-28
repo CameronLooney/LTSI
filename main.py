@@ -16,7 +16,7 @@ st.write("""
 Sheet 1: vlookup \n 
 Sheet 2: Previous \n 
 Sheet 3: Dropdown Menu \n  
-Sheet 4 LTSI tool True \n \n 
+Sheet 4: LTSI tool True \n \n 
 
 ### For your second upload please upload your raw download for the day \n \n \n
 
