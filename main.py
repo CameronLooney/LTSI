@@ -67,26 +67,9 @@ if st.button("Generate LTSI File"):
             dropdown = pd.read_excel(aux, sheet_name=2,engine="openpyxl")
             TF = pd.read_excel(aux, sheet_name=3,engine="openpyxl")
 
-            master_col_check =['sales_org', 'country', 'cust_num', 'customer_name', 'sales_dis', 'rtm', 'sales_ord', 'sd_line_item',
-             'order_method', 'del_blk', 'cust_req_date', 'ord_entry_date', 'cust_po_num', 'ship_num', 'ship_cust',
-             'ship_city', 'plant', 'material_num', 'brand', 'lob', 'project_code', 'material_desc', 'mpn_desc',
-             'ord_qty', 'shpd_qty', 'delivery_qty', 'remaining_qty', 'delivery_priority', 'opt_delivery_qt',
-             'rem_mod_opt_qt', 'sch_line_blocked_for_delv']
 
 
-            def master_checker(x, to_check):
-                if not set(to_check).issubset(set(x.columns)):
-                    global error_count
-                    error_count += 1
-                    return False
-                else:
-                    return True
 
-
-            if not master(master, master_col_check):
-                st.error(
-                    f"{' and '.join(set(master_col_check).difference(master.columns))} column not available in the dataframe\n"
-                    f"Please fix and try again")
 
             master = pd.read_excel(master, sheet_name = 0,engine = "openpyxl")
 
