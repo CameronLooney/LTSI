@@ -78,7 +78,7 @@ if st.button("Generate LTSI File"):
             master = master.merge(vlookup, on= 'material_num', how='left')
 
 
-            rows = master[master['Date']< master['ord_entry_date']].index.to_list()
+            rows = master[(master['Date']>= master['ord_entry_date'])& (~pd.isna(master['Date']))].index.to_list()
             master = master.drop(rows).reset_index()
 
 
