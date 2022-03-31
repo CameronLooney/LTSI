@@ -1,12 +1,15 @@
+#DISCLAIMER: The code is in no way efficient, it is designed to merely complete the task. It is also not finished as
+# some hard coded logic needs to be changed. It is simply the quick and dirty solution to the problem at hand
 import streamlit as st
-
 import pandas as pd
 import numpy as np
-import os
 
 
 
+# This will be a global variable to keep track of any problems along the process. This is needed to ensure the file
+# will not be downloaded unless it has no errors.
 error_count = 0
+# Title of the Application
 st.set_page_config(page_title='LTSI Open Orders')
 
 st.write("""
@@ -24,18 +27,22 @@ Sheet 4: LTSI tool True \n \n
 ### Contact me if issues arise:
 Slack: @Cameron Looney \n
 email: cameron_j_looney@apple.com""")
-
+# Need to uploads to generate Open Orders, one is a helper file which is used for computation and feedback. The master is
+# the file downloaded from FrontEnd each day
 aux = st.file_uploader("Upload Auxiliary File", type="xlsx")
 master = st.file_uploader("Upload Raw File", type="xlsx")
+# Button to start the process
 if st.button("Generate LTSI File"):
+    # These ensure that two files have been uploaded
     if aux is None:
         st.error("ERROR: Please upload a viable auxiliary file to continue.")
     if master is None:
         st.error("ERROR: Please upload your raw LTSI download file to continue.")
-
+    # If both files are uploaded we can begin the computation
     if aux is not None and master is not None:
         error_count = 0
         sheetNumCheck = pd.ExcelFile(aux)
+        # check that the helper file has the required sheets
         if len(sheetNumCheck.sheet_names) != 4:
             st.error("ERROR: Missing sheet from helper file.\n"
                      "Please ensure you have 4 sheets:\n"
@@ -49,8 +56,8 @@ if st.button("Generate LTSI File"):
         else:
 
             vlookup = pd.read_excel(aux, sheet_name=0,engine="openpyxl")
-            #dont need LOB in list as its not required to build
             vlookup_col_check = ["MPN","Date"]
+            # check contents of the vlookup sheet
             def vlookup_checker(x, to_check):
                 if not set(to_check).issubset(set(x.columns)):
                     global error_count
@@ -62,61 +69,64 @@ if st.button("Generate LTSI File"):
                 st.error(f"{' and '.join(set(vlookup_col_check).difference(vlookup.columns))} column not available in the dataframe\n"
                          f"Please fix and try again")
 
-
+            # load all the excel sheets
             previous = pd.read_excel(aux, sheet_name=1,engine="openpyxl")
             dropdown = pd.read_excel(aux, sheet_name=2,engine="openpyxl")
             TF = pd.read_excel(aux, sheet_name=3,engine="openpyxl")
-
-
-
-
-
             master = pd.read_excel(master, sheet_name = 0,engine = "openpyxl")
 
-
+            # rename to enable a join
             vlookup.rename(columns={'MPN': 'material_num'}, inplace=True)
-            # added to handle the bad date data in vlookup - need to test that it works
+            # vlookup date data is imcomplete so need to convert and add a place holder date
+            # without it we lose viable rows
             vlookup['Date'] = vlookup['Date'].fillna("01.01.90")
             vlookup['Date'] = pd.to_datetime(vlookup.Date, dayfirst=True)
             vlookup['Date'] = [x.date() for x in vlookup.Date]
             vlookup['Date'] = pd.to_datetime(vlookup.Date)
+            # perform vlookup type join with the raw download and vlookup
             master = master.merge(vlookup, on= 'material_num', how='left')
+            # LOGIC STEP
+            # if order placed before it was LTSI delete
             rows = master[master['Date'] > master['ord_entry_date']].index.to_list()
 
             master = master.drop(rows).reset_index()
-            from datetime import datetime, timedelta
 
+            # LOGIC STEP
+            # Drop rows if they are 6 months old and still have a 94 block. This is more of a dodgy fix. Risk of deleting viable
+            # rows however the risk is low. Needed as we overshoot open Orders by 500+ without it.
+            from datetime import datetime, timedelta
             six_months = datetime.now() - timedelta(188)
             rows_94 = master[
                 (master['ord_entry_date'] < six_months) & (master["sch_line_blocked_for_delv"] == 94)].index.to_list()
-            # rows_94= master[(master['ord_entry_date']< yearago) & (master["sch_line_blocked_for_delv"]==94)]
 
+            # drop these rows
             master = master.drop(rows_94).reset_index(drop=True)
+            # LOGIC STEP
+            # Again this step is more of my interpretation in order to get as accurate as possible. This removes 1 year+ Orders
+            # thinking is if it was going to be locked in, it would of happened by now
             twelve_months = datetime.now() - timedelta(365)
             rows_old = master[(master['ord_entry_date'] < twelve_months)].index.to_list()
-            # rows_94= master[(master['ord_entry_date']< yearago) & (master["sch_line_blocked_for_delv"]==94)]
+
 
             master = master.drop(rows_old).reset_index(drop=True)
+            # LOGIC STEP
+            # Drop any rows where we have no quantity left.
             master = master.loc[master['remaining_qty'] != 0]
-
+            # This is hard coded logic, There was no discernible reason they were dropped in Macro. However on 3 concurrent test days they
+            # weren't present so for now we will hardcode to drop them from our df
             country2021drop = master[(master['ord_entry_date'].dt.year == 2021) & (master['country'].isin(
                 ['Germany', 'Spain', "Turkey", "Belgium / Luxembourg", "Switzerland"]))].index.to_list()
             master = master.drop(country2021drop).reset_index(drop=True)
 
 
 
-
-
-
-
-            # TO FAR AHEAD DATES
-
             from datetime import datetime, timedelta
 
-
+            # LOGIC STEP
+            # Drop rows where the customer doesnt want it for 3 months. Again this was an interpretation to match Macro
             today = datetime.today()
-            three_weeks =  today + timedelta(weeks=12)
-            rows = master[master['cust_req_date']> three_weeks].index.to_list()
+            twelve_weeks =  today + timedelta(weeks=12)
+            rows = master[master['cust_req_date']> twelve_weeks].index.to_list()
             master = master.drop(rows).reset_index(drop=True)
 
 
