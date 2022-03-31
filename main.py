@@ -131,7 +131,7 @@ if st.button("Generate LTSI File"):
 
 
 
-            # DROP UNNEEDED COLUMNS
+            # These are the columns that wont be needed in our final df so we can drop
             cols =['sales_org', 'country', 'cust_num', 'customer_name', 'sales_dis', 'rtm',
                    'sales_ord', 'sd_line_item',
                    'order_method', 'del_blk', 'cust_req_date', 'ord_entry_date',
@@ -152,30 +152,31 @@ if st.button("Generate LTSI File"):
             # need to convert type as the 95 block was being converted to a date when introducd back into excel
             reduced['del_blk'] = np.where(pd.isnull(reduced['del_blk']), reduced['del_blk'], reduced['del_blk'].astype(str))
 
-            #reduced = reduced.drop(reduced[(reduced['del_blk'] != 95)& (reduced["sch_line_blocked_for_delv"] ==94)].index)
 
 
-            # CREATE AND FILL THE VALID IN LTSI COL
-            # THIS IS BETTER THAN OTHER MERGE, PREVENTS MAKING COPIES
+            # Merging main df with the True False LTSI df based on sales ord num
             reduced.rename(columns={'sales_ord': 'salesOrderNum'},inplace=True)
-            reduced['g']=reduced.groupby('salesOrderNum').cumcount()
-            TF['g']=TF.groupby('salesOrderNum').cumcount()
-            merged = reduced.merge(TF,how='left').drop('g',1)
+            reduced['holder']=reduced.groupby('salesOrderNum').cumcount()
+            TF['holder']=TF.groupby('salesOrderNum').cumcount()
+            merged = reduced.merge(TF,how='left').drop('holder',1)
             idx = 8
             new_col = merged['salesOrderNum'].astype(str) + merged['sd_line_item'].astype(str)
-
+            # insert merged column to act as unique key
             merged.insert(loc=idx, column='Sales Order and Line Item', value=new_col)
             merged['Sales Order and Line Item'] = merged['Sales Order and Line Item'].astype(int)
 
-
+            # CREATE AND FILL THE VALID IN LTSI COLUMN
+            # THIS IS BETTER THAN OTHER MERGE, PREVENTS MAKING COPIES
             merged.rename(columns={'Unnamed: 1': 'Valid in LTSI Tool'},inplace=True)
             merged["Valid in LTSI Tool"].fillna("FALSE", inplace=True)
             mask = merged.applymap(type) != bool
             d = {True: 'TRUE', False: 'FALSE'}
             merged = merged.where(mask, merged.replace(d))
-            #merged["cust_req_date"] = merged["cust_req_date"].dt.strftime('%d/%m/%Y')
-            #merged["ord_entry_date"] = merged["ord_entry_date"].dt.strftime('%d/%m/%Y')
 
+            # conditions for order Status
+            # Logic is as followed
+            # Manual SAP/Prority 13/ Valid in LTSI =Ship
+            # block in either block column is not shippable
             conditions = [merged['order_method'] == "Manual SAP",
                           merged['delivery_priority'] == 13,
                           merged["Valid in LTSI Tool"] == "TRUE",
@@ -198,7 +199,7 @@ if st.button("Generate LTSI File"):
 
 
             import io
-
+            # Writing df to Excel Sheet
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
                 # Write each dataframe to a different worksheet.
