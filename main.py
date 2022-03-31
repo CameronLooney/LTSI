@@ -75,11 +75,35 @@ if st.button("Generate LTSI File"):
 
 
             vlookup.rename(columns={'MPN': 'material_num'}, inplace=True)
+            # added to handle the bad date data in vlookup - need to test that it works
+            vlookup['Date'] = vlookup['Date'].fillna("01.01.90")
+            vlookup['Date'] = pd.to_datetime(vlookup.Date, dayfirst=True)
+            vlookup['Date'] = [x.date() for x in vlookup.Date]
+            vlookup['Date'] = pd.to_datetime(vlookup.Date)
             master = master.merge(vlookup, on= 'material_num', how='left')
+            rows = master[master['Date'] > master['ord_entry_date']].index.to_list()
 
-
-            rows = master[master['Date']>= master['ord_entry_date']].index.to_list()
             master = master.drop(rows).reset_index()
+            from datetime import datetime, timedelta
+
+            six_months = datetime.now() - timedelta(188)
+            rows_94 = master[
+                (master['ord_entry_date'] < six_months) & (master["sch_line_blocked_for_delv"] == 94)].index.to_list()
+            # rows_94= master[(master['ord_entry_date']< yearago) & (master["sch_line_blocked_for_delv"]==94)]
+
+            master = master.drop(rows_94).reset_index(drop=True)
+            twelve_months = datetime.now() - timedelta(365)
+            rows_old = master[(master['ord_entry_date'] < twelve_months)].index.to_list()
+            # rows_94= master[(master['ord_entry_date']< yearago) & (master["sch_line_blocked_for_delv"]==94)]
+
+            master = master.drop(rows_old).reset_index(drop=True)
+            master = master.loc[master['remaining_qty'] != 0]
+
+            country2021drop = master[(master['ord_entry_date'].dt.year == 2021) & (master['country'].isin(
+                ['Germany', 'Spain', "Turkey", "Belgium / Luxembourg", "Switzerland"]))].index.to_list()
+            master = master.drop(country2021drop).reset_index(drop=True)
+
+
 
 
 
@@ -93,13 +117,8 @@ if st.button("Generate LTSI File"):
             today = datetime.today()
             three_weeks =  today + timedelta(weeks=12)
             rows = master[master['cust_req_date']> three_weeks].index.to_list()
-            master = master.drop(rows).reset_index()
+            master = master.drop(rows).reset_index(drop=True)
 
-
-            # DROP ROWS WHERE REMAINING = 0
-            x = list(master['remaining_qty'].unique())
-
-            master = master.loc[master['remaining_qty'] != 0]
 
 
             # DROP UNNEEDED COLUMNS
@@ -120,7 +139,11 @@ if st.button("Generate LTSI File"):
 
             # APPLY REDUCTION
             reduced = master[cols]
-            print(list(reduced))
+            # need to convert type as the 95 block was being converted to a date when introducd back into excel
+            reduced['del_blk'] = np.where(pd.isnull(reduced['del_blk']), reduced['del_blk'], reduced['del_blk'].astype(str))
+
+            #reduced = reduced.drop(reduced[(reduced['del_blk'] != 95)& (reduced["sch_line_blocked_for_delv"] ==94)].index)
+
 
             # CREATE AND FILL THE VALID IN LTSI COL
             # THIS IS BETTER THAN OTHER MERGE, PREVENTS MAKING COPIES
@@ -140,8 +163,8 @@ if st.button("Generate LTSI File"):
             mask = merged.applymap(type) != bool
             d = {True: 'TRUE', False: 'FALSE'}
             merged = merged.where(mask, merged.replace(d))
-            merged["cust_req_date"] = merged["cust_req_date"].dt.strftime('%d/%m/%Y')
-            merged["ord_entry_date"] = merged["ord_entry_date"].dt.strftime('%d/%m/%Y')
+            #merged["cust_req_date"] = merged["cust_req_date"].dt.strftime('%d/%m/%Y')
+            #merged["ord_entry_date"] = merged["ord_entry_date"].dt.strftime('%d/%m/%Y')
 
             conditions = [merged['order_method'] == "Manual SAP",
                           merged['delivery_priority'] == 13,
@@ -150,8 +173,7 @@ if st.button("Generate LTSI File"):
                           ~merged["sch_line_blocked_for_delv"].isnull()]
             outputs = ["Shippable", "Shippable", "Shippable", "Blocked","Blocked"]
             # CONCAT ID AND LINE ORDER AND ADD
-            #  INDEX IS 8
-
+            #  IN   DEX IS 8
             res = np.select(conditions, outputs, "Under Review by C-SAM")
             res = pd.Series(res)
             merged['Status (SS)'] = res
