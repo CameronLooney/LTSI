@@ -90,7 +90,11 @@ if st.button("Generate LTSI File"):
             rows = master[master['Date'] > master['ord_entry_date']].index.to_list()
 
             master = master.drop(rows).reset_index()
+            master['sch_line_blocked_for_delv'] = master['sch_line_blocked_for_delv'].astype(str)
+            master['sch_line_blocked_for_delv'] = master['sch_line_blocked_for_delv'].replace("nan", "")
 
+            master['del_blk'] = master['del_blk'].astype(str)
+            master['del_blk'] = master['del_blk'].replace("nan", "")
             # LOGIC STEP
             # Drop rows if they are 6 months old and still have a 94 block. This is more of a dodgy fix. Risk of deleting viable
             # rows however the risk is low. Needed as we overshoot open Orders by 500+ without it.
