@@ -296,9 +296,8 @@ if st.button("Generate LTSI File"):
                     col_idx = merged.columns.get_loc(column)
                     writer.sheets['Sheet1'].set_column(col_idx, col_idx, column_width)
                     worksheet.autofilter(0, 0, merged.shape[0], merged.shape[1])
-                my_format = workbook.add_format()
-                my_format.set_align('vcenter')
-                worksheet.set_column('A:AH', None, my_format)
+                worksheet.set_column(11, 12, 20)
+                worksheet.set_column(12, 13, 20)
 
                 writer.save()
                 today = datetime.today()
