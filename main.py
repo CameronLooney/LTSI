@@ -223,14 +223,18 @@ if st.button("Generate LTSI File"):
                           merged["Valid in LTSI Tool"] == "TRUE",
                           ]
             outputs = ["Blocked", "Blocked", "Shippable", "Shippable", "Shippable"]
-            result = np.select(conditions, outputs, "Under Review with  C-SAM")
+            result = np.select(conditions, outputs, "Under Review with C-SAM")
             result = pd.Series(result)
             merged['Status (SS)'] = result
             return merged
 
 
         # master = generate_status_column(master)
-
+        def new_sdm_feedback(merged):
+            merged["Action (SDM)"] = ""
+            merged["Comments(SDM)"] = ""
+            merged["Estimated DN Date"] = ""
+            return merged
         def generate_sdm_feedback(merged):
             feedback = previous.drop('Status (SS)', 1)
             merged['g'] = merged.groupby('Sales Order and Line Item').cumcount()
@@ -241,6 +245,45 @@ if st.button("Generate LTSI File"):
             previous['g'] = previous.groupby('Sales Order and Line Item').cumcount()
             merged = merged.merge(previous, how='left').drop('g', 1)
             return merged
+
+
+        def scheduled_out(merged):
+            today = datetime.now()
+            ten_days = datetime.now() + timedelta(10)
+            merged.loc[(merged['cust_req_date'] >= today) &(merged['cust_req_date'] < ten_days) & (merged['Status (SS)'] == 'Shippable') & (
+                    merged["Valid in LTSI Tool"] == 'TRUE'), 'Status (SS)'] = 'Scheduled Out'
+            return merged
+
+
+        def cancellations(merged):
+            action_sdm = merged.columns[37]
+            merged[action_sdm] = merged[action_sdm].str.lower()
+            merged[action_sdm]= merged[action_sdm].fillna("0")
+
+            merged['Status (SS)'] = np.where(merged[action_sdm].str.contains('cancel', regex=False),'To be cancelled / reduced', merged['Status (SS)'])
+            return merged
+
+        def status_check_for_override(df):
+            feedback = previous[['Sales Order and Line Item', 'Status (SS)']]
+            feedback.rename(columns={'Status (SS)': 'Status (SS) yesterday'}, inplace=True)
+            df1 = df[['Sales Order and Line Item', 'Status (SS)']]
+            df1['g'] = df1.groupby('Sales Order and Line Item').cumcount()
+            feedback['g'] = feedback.groupby('Sales Order and Line Item').cumcount()
+            merged = df1.merge(feedback, how='left').drop('g', 1)
+            lst = ["Shippable",'Blocked', 'Scheduled Out', 'To be cancelled / reduced','Under Review with CSAM','Under Review with C-SAM']
+
+
+            df['Status (SS)'] = np.where((merged['Status (SS)'] != merged['Status (SS) yesterday']) & (~merged['Status (SS) yesterday'].isin(lst) &
+
+                                                                                                      merged['Status (SS) yesterday'].notna())
+                                 , merged['Status (SS) yesterday'], df['Status (SS)'])
+
+            return df
+
+
+
+
+
 
 
         # master = generate_sdm_feedback(master)
@@ -258,12 +301,16 @@ if st.button("Generate LTSI File"):
             step10 = generate_unique_key(step9)
             step11 = generate_validity_column(step10)
             step12 = generate_status_column(step11)
-            finished = generate_sdm_feedback(step12)
+            step13 = scheduled_out(step12)
+            step14 = new_sdm_feedback(step13)
+            step15 = generate_sdm_feedback(step14)
+            finished = cancellations(step15)
+            finished_status =status_check_for_override(finished)
             cols = columns_to_keep()
             cols.remove('sales_ord')
             cols.append('salesOrderNum')
-            finished.drop_duplicates(subset=cols, keep='first', inplace=True)
-            return finished
+            finished_status.drop_duplicates(subset=cols, keep='first', inplace=True)
+            return finished_status
 
 
         def write_to_excel(merged):
@@ -282,15 +329,32 @@ if st.button("Generate LTSI File"):
                 worksheet.set_column('K:K', None, fmt)
                 worksheet.set_column('L:L', None, fmt)
                 # Light yellow fill with dark yellow text.
-                print(merged.shape)
                 number_rows = len(merged.index) + 1
-                orange_format = workbook.add_format({'bg_color': '#FFEB9C',
-                                                     'font_color': '#9C6500'})
-                worksheet.conditional_format('$AH$2:$AK$%d' % (number_rows),
+                yellow_format = workbook.add_format({'bg_color': '#FFEB9C'})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
                                              {'type': 'formula',
-                                                       'criteria': '=AH2="Under Review with  C-SAM"',
-                                                       'format': orange_format})
-                from openpyxl.styles.alignment import Alignment
+                                              'criteria': '=$AH2="Under Review with C-SAM"',
+                                              'format': yellow_format})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
+                                             {'type': 'formula',
+                                              'criteria': '=$AH2="Under Review with CSAM"',
+                                              'format': yellow_format})
+                red_format = workbook.add_format({'bg_color': '#ffc7ce'})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
+                                             {'type': 'formula',
+                                              'criteria': '=$AH2="Blocked"',
+                                              'format': red_format})
+
+                green_format = workbook.add_format({'bg_color': '#c6efce'})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
+                                             {'type': 'formula',
+                                              'criteria': '=$AH2="Shippable"',
+                                              'format': green_format})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
+                                             {'type': 'formula',
+                                              'criteria': '=$AH2="Scheduled Out"',
+                                              'format': green_format})
+
                 for column in merged:
                     column_width = max(merged[column].astype(str).map(len).max(), len(column))
                     col_idx = merged.columns.get_loc(column)
@@ -298,20 +362,28 @@ if st.button("Generate LTSI File"):
                     worksheet.autofilter(0, 0, merged.shape[0], merged.shape[1])
                 worksheet.set_column(11, 12, 20)
                 worksheet.set_column(12, 13, 20)
+                worksheet.set_column(13, 14, 20)
+                header_format = workbook.add_format({'bold': True,
+                                                     'bottom': 2,
+                                                     'bg_color': '#0AB2F7'})
 
+                # Write the column headers with the defined format.
+                for col_num, value in enumerate(merged.columns.values):
+                    worksheet.write(0, col_num, value, header_format)
+                my_format = workbook.add_format()
+                my_format.set_align('left')
+
+                worksheet.set_column('N:N', None, my_format)
                 writer.save()
                 today = datetime.today()
                 d1 = today.strftime("%d/%m/%Y")
                 st.write("Download Completed File:")
-                if error_count == 0:
-                    st.download_button(
-                        label="Download Excel worksheets",
-                        data=buffer,
-                        file_name="LTSI_file_BACKTEST" + d1 + ".xlsx",
-                        mime="application/vnd.ms-excel"
-                    )
-                else:
-                    st.error("ERROR: An error was detected. Please try fix file format and try again.")
+                st.download_button(
+                    label="Download Excel worksheets",
+                    data=buffer,
+                    file_name="LTSI_file_" + d1 + ".xlsx",
+                    mime="application/vnd.ms-excel"
+                )
 
 
         finished = open_orders_generator(master)
