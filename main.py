@@ -11,48 +11,75 @@ import io
 error_count = 0
 # Title of the Application
 st.set_page_config(page_title='LTSI Open Orders')
-
 st.write("""
 
-# LTSI Tool 
-## Instructions\n 
-### For the first upload please make sure you have the following:\n
-Sheet 1: vlookup \n 
-Sheet 2: Previous \n 
-Sheet 3: Dropdown Menu \n  
-Sheet 4: LTSI tool True \n \n 
+    # LTSI Tool 
+    ## Instructions\n 
+    ### For the first upload please make sure you have the following:\n
+    Sheet 1: vlookup \n 
+    Sheet 2: Previous \n 
+    Sheet 3: Dropdown Menu \n  
+    Sheet 4: LTSI tool True \n \n 
 
-### For your second upload please upload your raw download for the day \n \n \n
+    ### For your second upload please upload your raw download for the day \n \n \n
 
-### Contact me if issues arise:
-Slack: @Cameron Looney \n
-email: cameron_j_looney@apple.com""")
-# Need to uploads to generate Open Orders, one is a helper file which is used for computation and feedback.
-# The master is the file downloaded from FrontEnd each day
-aux = st.file_uploader("Upload Auxiliary File", type="xlsx")
+    ### Contact me:
+    Please use the Feedback form for any issues\n""")
+    # Need to uploads to generate Open Orders, one is a helper file which is used for computation and feedback.
+    # The master is the file downloaded from FrontEnd each day
+upload_ltsi = st.file_uploader("Upload Raw LTSI Status File", type="xlsx")
+upload_previous_open_orders = st.file_uploader("Upload Yesterdays Open Orders", type="xlsx")
+upload_previous_helper = st.file_uploader("Upload MPN File", type="xlsx")
+
+
+
+
 master = st.file_uploader("Upload Raw File", type="xlsx")
-# Button to start the process
 if st.button("Generate LTSI File"):
+    if upload_ltsi is None:
+        st.error("ERROR: Please upload File")
+
+    if upload_ltsi is not None and upload_previous_open_orders is not None:
+        upload = pd.read_excel(upload_ltsi, sheet_name=0, engine="openpyxl")
+        open_orders = pd.read_excel(upload_previous_open_orders, sheet_name=0, engine="openpyxl")
+
+        valid = upload[["salesOrderNum"]]
+        valid["Valid in LTSI Tool"] = "TRUE"
+
+        valid["salesOrderNum"] = valid["salesOrderNum"].astype(str)
+        import re
+
+        valid["salesOrderNum"] = [re.sub(r"[a-zA-Z]", "", x) for x in valid["salesOrderNum"]]
+        valid = valid[valid["salesOrderNum"] != '']
+
+        status_col_num = open_orders.columns.get_loc("Status (SS)")
+        feedback_length = len(open_orders.columns)
+        complete_feedback = [8, status_col_num]
+        i = 34
+        while i < feedback_length:
+            complete_feedback.append(i)
+            i += 1
+
+        yesterday = open_orders.iloc[:, complete_feedback]
     # These ensure that two files have been uploaded
-    if aux is None:
-        st.error("ERROR: Please upload a viable auxiliary file to continue.")
+    if upload_previous_helper is None:
+        st.error("ERROR: Please upload a viable upload_previous_helperiliary file to continue.")
     if master is None:
         st.error("ERROR: Please upload your raw LTSI download file to continue.")
     # If both files are uploaded we can begin the computation
-    if aux is not None and master is not None:
+    if upload_previous_helper is not None and master is not None:
 
         # read in the excel worksheets into separate pandas daatframes
-        def read_excel_files(aux, master):
+        def read_excel_files(upload_previous_helper, master):
             # reading in files is time-consuming
-            vlookup = pd.read_excel(aux, sheet_name=0, engine="openpyxl")
-            previous = pd.read_excel(aux, sheet_name=1, engine="openpyxl")
-            TF = pd.read_excel(aux, sheet_name=3, engine="openpyxl")
+            vlookup = pd.read_excel(upload_previous_helper, sheet_name=0, engine="openpyxl")
+            previous = yesterday
+            TF = valid
             master = pd.read_excel(master, sheet_name=0, engine="openpyxl")
             return vlookup, previous, TF, master
 
 
-        vlookup, previous, TF, master = read_excel_files(aux, master)
-        print(vlookup["Date"].dtypes)
+        vlookup, previous, TF, master = read_excel_files(upload_previous_helper, master)
 
 
         # this is required as some Dates are left blank and thus were lost
@@ -105,7 +132,8 @@ if st.button("Generate LTSI File"):
         def delete_old_blocked_orders(master):
             six_months = datetime.now() - timedelta(188)
             rows_94 = master[
-                (master['ord_entry_date'] < six_months) & (master["sch_line_blocked_for_delv"] == 94)].index.to_list()
+                (master['ord_entry_date'] < six_months) & (
+                        master["sch_line_blocked_for_delv"] == 94)].index.to_list()
             master = master.drop(rows_94).reset_index(drop=True)
             return master
 
@@ -153,8 +181,9 @@ if st.button("Generate LTSI File"):
                     'delivery_priority', 'opt_delivery_qt', 'rem_mod_opt_qt',
                     'sch_line_blocked_for_delv']
             return cols
-        def drop_unneeded_cols(master):
 
+
+        def drop_unneeded_cols(master):
 
             # APPLY REDUCTION
             reduced = master[columns_to_keep()]
@@ -180,6 +209,9 @@ if st.button("Generate LTSI File"):
         # this creates the validity column
         def valid_in_LTSI_tool(reduced):
             reduced.rename(columns={'sales_ord': 'salesOrderNum'}, inplace=True)
+            reduced['salesOrderNum'] = reduced['salesOrderNum'].astype(int)
+            TF['salesOrderNum'] = TF['salesOrderNum'].astype(int)
+
             reduced['holder'] = reduced.groupby('salesOrderNum').cumcount()
             TF['holder'] = TF.groupby('salesOrderNum').cumcount()
             merged = reduced.merge(TF, how='left').drop('holder', 1)
@@ -235,58 +267,39 @@ if st.button("Generate LTSI File"):
             merged["Comments(SDM)"] = ""
             merged["Estimated DN Date"] = ""
             return merged
+
+
         def generate_sdm_feedback(merged):
             feedback = previous.drop('Status (SS)', 1)
-            merged['g'] = merged.groupby('Sales Order and Line Item').cumcount()
-            feedback['g'] = feedback.groupby('Sales Order and Line Item').cumcount()
-            merged = merged.merge(feedback, how='left').drop('g', 1)
+            merged = merged.merge(feedback, on='Sales Order and Line Item', how='left')
 
-            merged['g'] = merged.groupby('Sales Order and Line Item').cumcount()
-            previous['g'] = previous.groupby('Sales Order and Line Item').cumcount()
-            merged = merged.merge(previous, how='left').drop('g', 1)
             return merged
 
+
+        # master = generate_sdm_feedback(master)
 
         def scheduled_out(merged):
             today = datetime.now()
             ten_days = datetime.now() + timedelta(10)
-            merged.loc[(merged['cust_req_date'] >= today) &(merged['cust_req_date'] < ten_days) & (merged['Status (SS)'] == 'Shippable') & (
-                    merged["Valid in LTSI Tool"] == 'TRUE'), 'Status (SS)'] = 'Scheduled Out'
+            merged.loc[(merged['cust_req_date'] >= today) & (merged['cust_req_date'] < ten_days) & (
+                    merged['Status (SS)'] == 'Shippable') & (
+                               merged["Valid in LTSI Tool"] == 'TRUE'), 'Status (SS)'] = 'Scheduled Out'
             return merged
 
 
-        def cancellations(merged):
+        def status_override(merged):
             action_sdm = merged.columns[37]
             merged[action_sdm] = merged[action_sdm].str.lower()
-            merged[action_sdm]= merged[action_sdm].fillna("0")
+            merged[action_sdm] = merged[action_sdm].fillna("0")
 
-            merged['Status (SS)'] = np.where(merged[action_sdm].str.contains('cancel', regex=False),'To be cancelled / reduced', merged['Status (SS)'])
+            merged['Status (SS)'] = np.where(merged[action_sdm].str.contains('cancel', regex=False),
+                                             'To be cancelled / reduced', merged['Status (SS)'])
+            merged['Status (SS)'] = np.where(merged[action_sdm].str.contains('block', regex=False),
+                                             'Blocked', merged['Status (SS)'])
+            merged[action_sdm] = merged[action_sdm].astype(str)
+            merged[action_sdm].replace(['0', '0.0'], '', inplace=True)
             return merged
 
-        def status_check_for_override(df):
-            feedback = previous[['Sales Order and Line Item', 'Status (SS)']]
-            feedback.rename(columns={'Status (SS)': 'Status (SS) yesterday'}, inplace=True)
-            df1 = df[['Sales Order and Line Item', 'Status (SS)']]
-            df1['g'] = df1.groupby('Sales Order and Line Item').cumcount()
-            feedback['g'] = feedback.groupby('Sales Order and Line Item').cumcount()
-            merged = df1.merge(feedback, how='left').drop('g', 1)
-            lst = ["Shippable",'Blocked', 'Scheduled Out', 'To be cancelled / reduced','Under Review with CSAM','Under Review with C-SAM']
-
-
-            df['Status (SS)'] = np.where((merged['Status (SS)'] != merged['Status (SS) yesterday']) & (~merged['Status (SS) yesterday'].isin(lst) &
-
-                                                                                                      merged['Status (SS) yesterday'].notna())
-                                 , merged['Status (SS) yesterday'], df['Status (SS)'])
-
-            return df
-
-
-
-
-
-
-
-        # master = generate_sdm_feedback(master)
 
         def open_orders_generator(master):
             step1 = master_vlookup_merge(master, vlookup)
@@ -304,13 +317,12 @@ if st.button("Generate LTSI File"):
             step13 = scheduled_out(step12)
             step14 = new_sdm_feedback(step13)
             step15 = generate_sdm_feedback(step14)
-            finished = cancellations(step15)
-            finished_status =status_check_for_override(finished)
+            finished = status_override(step15)
             cols = columns_to_keep()
             cols.remove('sales_ord')
             cols.append('salesOrderNum')
-            finished_status.drop_duplicates(subset=cols, keep='first', inplace=True)
-            return finished_status
+            finished.drop_duplicates(subset=cols, keep='first', inplace=True)
+            return finished
 
 
         def write_to_excel(merged):
@@ -344,7 +356,7 @@ if st.button("Generate LTSI File"):
                                              {'type': 'formula',
                                               'criteria': '=$AH2="Blocked"',
                                               'format': red_format})
-
+                # C0C0C0
                 green_format = workbook.add_format({'bg_color': '#c6efce'})
                 worksheet.conditional_format('A2:AH%d' % (number_rows),
                                              {'type': 'formula',
@@ -354,6 +366,11 @@ if st.button("Generate LTSI File"):
                                              {'type': 'formula',
                                               'criteria': '=$AH2="Scheduled Out"',
                                               'format': green_format})
+                grey_format = workbook.add_format({'bg_color': '#C0C0C0'})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
+                                             {'type': 'formula',
+                                              'criteria': '=$AH2="To be cancelled / reduced"',
+                                              'format': grey_format})
 
                 for column in merged:
                     column_width = max(merged[column].astype(str).map(len).max(), len(column))
