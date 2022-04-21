@@ -17,9 +17,9 @@ st.write("""
     ## Instructions\n 
     - First Save all files as .xlsx \n
     - **Upload 1:** Raw LTSI download \n
-    - Upload 2: Upload Updated Open Order File from Yesterday \n
-    - Upload 3: Vlookup file with MPN's 
-    - Upload 4: Upload Raw Backlog\n""")
+    - **Upload 2:** Upload Updated Open Order File from Yesterday \n
+    - **Upload 3:** Vlookup file with MPN's 
+    - **Upload 4:** Upload Raw Backlog\n""")
     # Need to uploads to generate Open Orders, one is a helper file which is used for computation and feedback.
     # The master is the file downloaded from FrontEnd each day
 upload_ltsi = st.file_uploader("Upload Raw LTSI Status File", type="xlsx")
