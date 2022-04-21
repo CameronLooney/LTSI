@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import io
 import streamlit as st
+import numpy as np
 
 
 # ideas
@@ -28,14 +29,21 @@ def app():
                                    type="xlsx")
     if st.button("Create Feedback"):
         def download_file(merged):
+            action_sdm = merged.columns[34]
+            merged[action_sdm] = merged[action_sdm].str.lower()
+            merged[action_sdm] = merged[action_sdm].fillna("0")
+
+            merged['Status (SS)'] = np.where(merged[action_sdm].str.contains('cancel', regex=False),
+                                             'To be cancelled / reduced', merged['Status (SS)'])
+            merged['Status (SS)'] = np.where(merged[action_sdm].str.contains('block', regex=False),
+                                             'Blocked', merged['Status (SS)'])
+            merged[action_sdm] = merged[action_sdm].astype(str)
+            merged[action_sdm].replace(['0', '0.0'], '', inplace=True)
+
             # Writing df to Excel Sheet
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
 
-                # Write each dataframe to a different worksheet.
-                # data["Date"] = pd.to_datetime(data["Date"])
-
-                # pd.to_datetime('date')
                 merged.to_excel(writer, sheet_name='Sheet1', index=False)
                 workbook = writer.book
                 worksheet = writer.sheets['Sheet1']
@@ -50,6 +58,11 @@ def app():
                                              {'type': 'formula',
                                               'criteria': '=$AG2="Under Review with CSAM"',
                                               'format': yellow_format})
+                grey_format = workbook.add_format({'bg_color': '#C0C0C0'})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
+                                             {'type': 'formula',
+                                              'criteria': '=$AG2="To be cancelled / reduced"',
+                                              'format': grey_format})
                 worksheet.conditional_format('A2:AH%d' % (number_rows),
                                              {'type': 'formula',
                                               'criteria': '=$AG2="Under Review with C-SAM"',
@@ -65,7 +78,18 @@ def app():
                                              {'type': 'formula',
                                               'criteria': '=$AG2="Shippable"',
                                               'format': green_format})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
+                                             {'type': 'formula',
+                                              'criteria': '=$AG2="Scheduled Out"',
+                                              'format': green_format})
+
                 # COL MIGHT BE AH
+                grey_format = workbook.add_format({'bg_color': '#C0C0C0'})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
+                                             {'type': 'formula',
+                                              'criteria': '=$AH2="To be cancelled / reduced"',
+                                              'format': grey_format})
+
                 worksheet.conditional_format('A2:AH%d' % (number_rows),
                                              {'type': 'formula',
                                               'criteria': '=$AH2="Under Review with CSAM"',
@@ -85,6 +109,11 @@ def app():
                                              {'type': 'formula',
                                               'criteria': '=$AH2="Shippable"',
                                               'format': green_format})
+                worksheet.conditional_format('A2:AH%d' % (number_rows),
+                                             {'type': 'formula',
+                                              'criteria': '=$AH2="Scheduled Out"',
+                                              'format': green_format})
+
                 for column in merged:
                     column_width = max(merged[column].astype(str).map(len).max(), len(column))
                     col_idx = merged.columns.get_loc(column)
@@ -115,8 +144,6 @@ def app():
                     mime="application/vnd.ms-excel"
                 )
 
-
-
         def columns_to_keep():
             cols = ['sales_org', 'country', 'cust_num', 'customer_name', 'sales_dis', 'rtm', 'sd_line_item',
                     'order_method', 'del_blk', 'cust_req_date', 'ord_entry_date',
@@ -126,7 +153,6 @@ def app():
                     'delivery_priority', 'opt_delivery_qt', 'rem_mod_opt_qt',
                     'sch_line_blocked_for_delv']
             return cols
-
 
         def old_feedback_getter(df):
             cols = [8]
