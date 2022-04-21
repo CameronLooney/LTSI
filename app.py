@@ -5,7 +5,7 @@ from PIL import  Image
 
 # Custom imports
 from multipage import MultiPage
-from pages import main, feedback   # import your pages here
+from pages import main, feedback , issue_form  # import your pages here
 
 # Create an instance of the app
 app = MultiPage()
@@ -21,7 +21,7 @@ st.image(display, width = 650)
 # Add all your application here
 app.add_page("Generate Open Order File", main.app)
 app.add_page("Consolidate Feedback", feedback.app)
-
+app.add_page("Issue/Bug Form", issue_form.app)
 
 
 # The main app
