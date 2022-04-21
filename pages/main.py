@@ -12,7 +12,7 @@ error_count = 0
 # Title of the Application
 def app():
     st.write("""
-    
+
         # LTSI Tool 
         ## Instructions\n 
         - First Save all files as .xlsx \n
@@ -20,14 +20,11 @@ def app():
         - **Upload 2:** Upload Updated Open Order File from Yesterday \n
         - **Upload 3:** Vlookup file with MPN's 
         - **Upload 4:** Upload Raw Backlog\n""")
-        # Need to uploads to generate Open Orders, one is a helper file which is used for computation and feedback.
-        # The master is the file downloaded from FrontEnd each day
+    # Need to uploads to generate Open Orders, one is a helper file which is used for computation and feedback.
+    # The master is the file downloaded from FrontEnd each day
     upload_ltsi = st.file_uploader("Upload Raw LTSI Status File", type="xlsx")
     upload_previous_open_orders = st.file_uploader("Upload Yesterdays Open Orders", type="xlsx")
     upload_previous_helper = st.file_uploader("Upload MPN File", type="xlsx")
-
-
-
 
     master = st.file_uploader("Upload Raw File", type="xlsx")
     if st.button("Generate LTSI File"):
@@ -73,9 +70,7 @@ def app():
                 master = pd.read_excel(master, sheet_name=0, engine="openpyxl")
                 return vlookup, previous, TF, master
 
-
             vlookup, previous, TF, master = read_excel_files(upload_previous_helper, master)
-
 
             # this is required as some Dates are left blank and thus were lost
             # in later data manipulation
@@ -87,15 +82,12 @@ def app():
                 vlookup['Date'] = pd.to_datetime(vlookup.Date)
                 return vlookup
 
-
             vlookup = vlookup_date_fill(vlookup)
-
 
             # Functions job is to perform a vlookup function between open orders and vlookup worksheet
             def master_vlookup_merge(master, vlookup):
                 master = master.merge(vlookup, on='material_num', how='left')
                 return master
-
 
             # master = master_vlookup_merge(master,vlookup)
 
@@ -105,7 +97,6 @@ def app():
                 rows = master[master['Date'] > master['ord_entry_date']].index.to_list()
                 master = master.drop(rows).reset_index()
                 return master
-
 
             # master = drop_old_dates(master)
 
@@ -119,7 +110,6 @@ def app():
                 master['del_blk'] = master['del_blk'].replace("nan", "")
                 return master
 
-
             # master = order_block_type_converter(master)
 
             # Function to reduce row number, logic behind this function is if an order is 6 months old and still blocked
@@ -132,7 +122,6 @@ def app():
                 master = master.drop(rows_94).reset_index(drop=True)
                 return master
 
-
             # master = delete_old_blocked_orders(master)
 
             # logic is similar here. If the order is more than a year old is isnt going to be a valid open order so drop the row
@@ -142,14 +131,12 @@ def app():
                 master = master.drop(rows_old).reset_index(drop=True)
                 return master
 
-
             # master = delete_year_old_orders(master)
 
             # If we have no qty left we cant fulfill order so drop
             def delete_no_qty(master):
                 master = master.loc[master['remaining_qty'] != 0]
                 return master
-
 
             # master =delete_no_qty(master)
 
@@ -160,7 +147,6 @@ def app():
                     ['Germany', 'Spain', "Turkey", "Belgium / Luxembourg", "Switzerland"]))].index.to_list()
                 master = master.drop(country2021drop).reset_index(drop=True)
                 return master
-
 
             # master = drop_miscellaneous(master)
 
@@ -177,14 +163,12 @@ def app():
                         'sch_line_blocked_for_delv']
                 return cols
 
-
             def drop_unneeded_cols(master):
 
                 # APPLY REDUCTION
                 reduced = master[columns_to_keep()]
                 return reduced
                 # master = drop_unneeded_cols(master)
-
 
             # alternative to above type converter this might be more convienient
             # only keep one
@@ -196,7 +180,6 @@ def app():
                                                                 reduced['sch_line_blocked_for_delv'].astype(str))
 
                 return reduced
-
 
             # master = block_converter_alternative(master)
 
@@ -212,7 +195,6 @@ def app():
                 merged = reduced.merge(TF, how='left').drop('holder', 1)
                 return merged
 
-
             # master = valid_in_LTSI_tool(master)
 
             # join two columns and generate a new column to act as key
@@ -225,7 +207,6 @@ def app():
                 merged['Sales Order and Line Item'] = merged['Sales Order and Line Item'].astype(int)
                 return merged
 
-
             # master = generate_unique_key(master)
 
             # this generates the new validity column
@@ -237,7 +218,6 @@ def app():
                 dict = {True: 'TRUE', False: 'FALSE'}
                 merged = merged.where(mask, merged.replace(dict))
                 return merged
-
 
             # master = generate_validity_column(master)
 
@@ -255,7 +235,6 @@ def app():
                 merged['Status (SS)'] = result
                 return merged
 
-
             # master = generate_status_column(master)
             def new_sdm_feedback(merged):
                 merged["Action (SDM)"] = ""
@@ -263,13 +242,11 @@ def app():
                 merged["Estimated DN Date"] = ""
                 return merged
 
-
             def generate_sdm_feedback(merged):
                 feedback = previous.drop('Status (SS)', 1)
                 merged = merged.merge(feedback, on='Sales Order and Line Item', how='left')
 
                 return merged
-
 
             # master = generate_sdm_feedback(master)
 
@@ -280,7 +257,6 @@ def app():
                         merged['Status (SS)'] == 'Shippable') & (
                                    merged["Valid in LTSI Tool"] == 'TRUE'), 'Status (SS)'] = 'Scheduled Out'
                 return merged
-
 
             def status_override(merged):
                 action_sdm = merged.columns[37]
@@ -300,11 +276,11 @@ def app():
                                    "Scheduled Out"]
                 prev = previous[~previous['Status (SS)'].isin(standard_status)]
                 result = prev.groupby('Sales Order and Line Item')['Status (SS)'].apply(list).to_dict()
+                print(result)
                 for key, value in result.items():
                     merged["Status (SS)"] = np.where(merged["Sales Order and Line Item"] == key, value,
                                                      merged["Status (SS)"])
                 return merged
-
 
             def open_orders_generator(master):
                 step1 = master_vlookup_merge(master, vlookup)
@@ -330,7 +306,6 @@ def app():
                 cols.append('salesOrderNum')
                 finished.drop_duplicates(subset=cols, keep='first', inplace=True)
                 return finished
-
 
             def write_to_excel(merged):
                 # Writing df to Excel Sheet
@@ -408,7 +383,6 @@ def app():
                         file_name="LTSI_file_" + d1 + ".xlsx",
                         mime="application/vnd.ms-excel"
                     )
-
 
             finished = open_orders_generator(master)
             write_to_excel(finished)
