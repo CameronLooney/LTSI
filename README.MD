@@ -19,7 +19,7 @@
 ## Installation
 No install is required to run this project. Instead just follow the following link:
 
-https://share.streamlit.io/cameronlooney/ltsi-master-app/app.py
+https://share.streamlit.io/cameronlooney/ltsi/app.py
 
 ---
 
