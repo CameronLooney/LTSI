@@ -295,6 +295,16 @@ def app():
                 merged[action_sdm].replace(['0', '0.0'], '', inplace=True)
                 return merged
 
+            def unique_status(merged):
+                standard_status = ["Shippable", "Blocked", "To be cancelled / reduced", "Under Review with C-SAM",
+                                   "Scheduled Out"]
+                prev = previous[~previous['Status (SS)'].isin(standard_status)]
+                result = prev.groupby('Sales Order and Line Item')['Status (SS)'].apply(list).to_dict()
+                for key, value in result.items():
+                    merged["Status (SS)"] = np.where(merged["Sales Order and Line Item"] == key, value,
+                                                     merged["Status (SS)"])
+                return merged
+
 
             def open_orders_generator(master):
                 step1 = master_vlookup_merge(master, vlookup)
@@ -312,7 +322,8 @@ def app():
                 step13 = scheduled_out(step12)
                 step14 = new_sdm_feedback(step13)
                 step15 = generate_sdm_feedback(step14)
-                finished = status_override(step15)
+                step16 = status_override(step15)
+                finished = unique_status(step16)
                 cols = columns_to_keep()
                 cols.remove('sales_ord')
                 cols.append('salesOrderNum')
