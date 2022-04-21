@@ -279,9 +279,9 @@ if st.button("Generate LTSI File"):
         # master = generate_sdm_feedback(master)
 
         def scheduled_out(merged):
-            today = datetime.now()
+
             ten_days = datetime.now() + timedelta(10)
-            merged.loc[(merged['cust_req_date'] >= today) & (merged['cust_req_date'] < ten_days) & (
+            merged.loc[(merged['cust_req_date'] > ten_days) & (
                     merged['Status (SS)'] == 'Shippable') & (
                                merged["Valid in LTSI Tool"] == 'TRUE'), 'Status (SS)'] = 'Scheduled Out'
             return merged
