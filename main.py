@@ -15,16 +15,11 @@ st.write("""
 
     # LTSI Tool 
     ## Instructions\n 
-    ### For the first upload please make sure you have the following:\n
-    Sheet 1: vlookup \n 
-    Sheet 2: Previous \n 
-    Sheet 3: Dropdown Menu \n  
-    Sheet 4: LTSI tool True \n \n 
-
-    ### For your second upload please upload your raw download for the day \n \n \n
-
-    ### Contact me:
-    Please use the Feedback form for any issues\n""")
+    ### First Save all files as .xlsx \n
+    ### Upload 1: Raw LTSI download \n
+    ### Upload 2: Upload Updated Open Order File from Yesterday \n
+    ### Upload 3: Vlookup file with MPN's 
+    ### Upload 4: Upload Raw Backlog\n""")
     # Need to uploads to generate Open Orders, one is a helper file which is used for computation and feedback.
     # The master is the file downloaded from FrontEnd each day
 upload_ltsi = st.file_uploader("Upload Raw LTSI Status File", type="xlsx")
