@@ -324,6 +324,7 @@ def app():
                 step15 = generate_sdm_feedback(step14)
                 step16 = status_override(step15)
                 finished = unique_status(step16)
+                print(finished["Status (SS)"].unique())
                 cols = columns_to_keep()
                 cols.remove('sales_ord')
                 cols.append('salesOrderNum')
