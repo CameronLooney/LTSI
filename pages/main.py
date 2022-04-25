@@ -94,7 +94,7 @@ def app():
             # Function to filter out old LTSI and drop based on date
             def drop_old_dates(master):
                 # if the date the order was placed is before it became valid LTSI drop from df
-                rows = master[master['Date'] > master['ord_entry_date']].index.to_list()
+                rows = master[(master['Date'] > master['ord_entry_date']) &(master["delivery_priority"] != 13) ].index.to_list()
                 master = master.drop(rows).reset_index()
                 return master
 
@@ -118,7 +118,7 @@ def app():
                 six_months = datetime.now() - timedelta(188)
                 rows_94 = master[
                     (master['ord_entry_date'] < six_months) & (
-                            master["sch_line_blocked_for_delv"] == 94)].index.to_list()
+                            master["sch_line_blocked_for_delv"] == 94) & (master['delivery_priority']!=13)].index.to_list()
                 master = master.drop(rows_94).reset_index(drop=True)
                 return master
 
@@ -127,7 +127,7 @@ def app():
             # logic is similar here. If the order is more than a year old is isnt going to be a valid open order so drop the row
             def delete_year_old_orders(master):
                 twelve_months = datetime.now() - timedelta(365)
-                rows_old = master[(master['ord_entry_date'] < twelve_months)].index.to_list()
+                rows_old = master[(master['ord_entry_date'] < twelve_months) &(master['delivery_priority']!=13)].index.to_list()
                 master = master.drop(rows_old).reset_index(drop=True)
                 return master
 
@@ -143,7 +143,7 @@ def app():
             # this is ugly hard coded logic but as of now these rows are escaping through the tests
             # this needs to be fixed
             def drop_miscellaneous(master):
-                country2021drop = master[(master['ord_entry_date'].dt.year == 2021) & (master['country'].isin(
+                country2021drop = master[(master['ord_entry_date'].dt.year == 2021) & (master['delivery_priority']!=13) & (master['country'].isin(
                     ['Germany', 'Spain', "Turkey", "Belgium / Luxembourg", "Switzerland"]))].index.to_list()
                 master = master.drop(country2021drop).reset_index(drop=True)
                 return master
